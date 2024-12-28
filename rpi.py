@@ -1,88 +1,96 @@
-import cv2
 import numpy as np
 import tensorflow as tf
-from picamera2 import Picamera2, Preview
+from picamera2 import Picamera2
+import time
+import cv2
 
-# Ścieżka do modelu TensorFlow Lite
-MODEL_PATH = "model.tflite"
+def convert_model_to_int8(input_model_path, output_model_path):
+    # Ładowanie modelu float32
+    converter = tf.lite.TFLiteConverter.from_saved_model(input_model_path)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.target_spec.supported_types = [tf.int8]
+    converter.inference_input_type = tf.int8
+    converter.inference_output_type = tf.int8
 
-# Funkcja do ładowania modelu TensorFlow Lite
-def load_model(model_path):
-    interpreter = tf.lite.Interpreter(model_path=model_path)
-    interpreter.allocate_tensors()
-    return interpreter
+    # Konwersja modelu
+    tflite_model = converter.convert()
 
-# Funkcja do przetwarzania obrazu (skalowanie, normalizacja)
-def preprocess_frame(frame, img_size=(224, 224)):
-    resized_frame = cv2.resize(frame, img_size)
-    normalized_frame = resized_frame.astype(np.float32) / 255.0  # Normalizacja
-    return np.expand_dims(normalized_frame, axis=0)  # Dodanie wymiaru batcha
+    # Zapis modelu INT8
+    with open(output_model_path, "wb") as f:
+        f.write(tflite_model)
+    print(f"Model zapisany jako {output_model_path}")
 
-# Funkcja do detekcji uszkodzeń
-def detect_defects(interpreter, image):
+# Funkcja do przeskalowania obrazu na odpowiedni format dla modelu INT8
+def preprocess_image(frame, input_shape):
+    # Zmiana rozmiaru obrazu na wymagany przez model
+    resized_frame = cv2.resize(frame, (input_shape[1], input_shape[2]))
+    # Normalizacja i konwersja do INT8
+    normalized_frame = (resized_frame / 255.0 * 127 - 128).astype('int8')
+    return normalized_frame
+
+# Funkcja do interpretacji wyników
+def interpret_output(output_data):
+    # Przykład interpretacji wyników (dostosuj do swojego modelu)
+    predicted_class = np.argmax(output_data)
+    confidence = np.max(output_data)
+    return predicted_class, confidence
+
+def main():
+    # Inicjalizacja kamery
+    picam2 = Picamera2()
+    preview_config = picam2.create_preview_configuration(main={"size": (640, 480)})
+    picam2.configure(preview_config)
+    picam2.start()
+    time.sleep(2)  # Poczekaj, aż kamera się ustabilizuje
+
+    # Wczytanie modelu
+    try:
+        interpreter = tf.lite.Interpreter(model_path="model_int8.tflite")
+        interpreter.allocate_tensors()
+    except ValueError as e:
+        print(f"Nie udało się wczytać modelu: {e}")
+        return
+
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
-    interpreter.set_tensor(input_details[0]['index'], image)
-    interpreter.invoke()
+    input_shape = input_details[0]['shape']
 
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    return output_data
-
-# Funkcja do rysowania wyników na klatce obrazu
-def draw_results(frame, result, defect_types):
-    predicted_index = np.argmax(result)
-    label = defect_types[predicted_index]
-    confidence = result[0][predicted_index] * 100
-
-    # Dodanie tekstu na obrazie
-    text = f"{label} ({confidence:.2f}%)"
-    cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
-    return frame
-
-# Główna funkcja analizy na żywo
-def live_analysis():
-    # Inicjalizacja kamery Raspberry Pi
-    picam2 = Picamera2()
-    preview_config = picam2.create_preview_configuration()
-    picam2.configure(preview_config)
-
-    # Ładowanie modelu
-    interpreter = load_model(MODEL_PATH)
-
-    # Typy defektów
-    defect_types = ["Brak defektu", "Przerwane ścieżki", "Mostki lutownicze", "Zimne luty"]
-
-    # Start kamery
-    picam2.start_preview(Preview.QTGL)
-    picam2.start()
+    print("Model załadowany pomyślnie.")
 
     try:
         while True:
-            # Przechwycenie klatki
+            # Pobranie klatki z kamery
             frame = picam2.capture_array()
 
-            # Przetwarzanie obrazu
-            input_image = preprocess_frame(frame)
-            result = detect_defects(interpreter, input_image)
+            # Przygotowanie obrazu
+            try:
+                input_data = preprocess_image(frame, input_shape)
+                input_data = np.expand_dims(input_data, axis=0)  # Dodanie wymiaru batch
 
-            # Rysowanie wyników na klatce
-            frame_with_results = draw_results(frame, result, defect_types)
+                # Klasyfikacja obrazu
+                interpreter.set_tensor(input_details[0]['index'], input_data)
+                interpreter.invoke()
 
-            # Wyświetlenie obrazu
-            cv2.imshow("Analiza na żywo - Wykrywanie uszkodzeń PCB", frame_with_results)
+                # Pobranie wyników
+                output_data = interpreter.get_tensor(output_details[0]['index'])[0]
 
-            # Przerwanie pętli po naciśnięciu klawisza 'q'
+                # Interpretacja wyników
+                predicted_class, confidence = interpret_output(output_data)
+                print(f"Predykcja: {predicted_class}, Pewność: {confidence:.2f}")
+
+            except Exception as e:
+                print(f"Błąd podczas przetwarzania obrazu: {e}")
+
+            # Wyjście po naciśnięciu klawisza 'q'
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-    except KeyboardInterrupt:
-        print("\nZatrzymano analizę na żywo.")
-    finally:
-        # Zatrzymanie kamery i zamknięcie okien
-        picam2.stop()
-        cv2.destroyAllWindows()
 
-# Uruchomienie analizy na żywo
+    finally:
+        picam2.stop()
+        print("Kamera zatrzymana.")
+
 if __name__ == "__main__":
-    live_analysis()
+    # Jeśli potrzeba skonwertować model, odkomentuj poniższą linię i ustaw ścieżki
+    # convert_model_to_int8("path_to_saved_model", "model_int8.tflite")
+    main()
