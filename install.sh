@@ -50,11 +50,11 @@ echo "Wszystkie wymagane biblioteki zostały zainstalowane."
 # Potwierdzenie zakończenia
 echo "Gotowe! Program jest gotowy do uruchomienia."
 
-echo "Uruchamianie programu .." 
+echo "Uruchamianie programu .."
 
 read -p "Wprowadź swoje wybory: " choice
 
-for aplikacja in (echo $choice | tr "," "\n"); do
+for aplikacja in $(echo $choice | tr "," "\n"); do
     case $aplikacja in
         "1") echo 'Uruchamianie aplikacji w trybie live'
             python3 online.py
@@ -67,3 +67,4 @@ for aplikacja in (echo $choice | tr "," "\n"); do
             ;;
     esac
 done
+
