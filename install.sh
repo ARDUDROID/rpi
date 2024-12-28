@@ -29,15 +29,7 @@ sudo apt install -y \
     python3-opencv \
     python3-dev \
     python3-picamera \
-    libatlas-base-dev \
-    libprotobuf-dev \
-    libprotoc-dev \
-    protobuf-compiler
 
-# Instalowanie pakietów Qt i PyQt5
-sudo apt install -y \
-    qt5-qmake qtbase5-dev qtchooser qtbase5-dev-tools \
-    libqt5webkit5-dev libqt5svg5-dev
 
 echo "Pakiety systemowe zostały zainstalowane."
 
