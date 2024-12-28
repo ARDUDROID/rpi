@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Funkcja do animacji "trójkąt" podczas instalacji
 install_animation() {
