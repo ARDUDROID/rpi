@@ -83,7 +83,11 @@ def main():
                 print(f"Błąd podczas przetwarzania obrazu: {e}")
 
             # Wyjście po naciśnięciu klawisza 'q'
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if hasattr(cv2, 'waitKey'):
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            else:
+                print("cv2.waitKey is not available in the cv2 module")
                 break
 
     finally:
