@@ -25,20 +25,20 @@ def preprocess_image(frame, input_shape):
     # Convert BGR to RGB if needed
     if len(frame.shape) == 3 and frame.shape[2] == 4:  # If RGBA
         frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
-    elif len(frame.shape) == 3 and frame.shape[2] == 3:  # If BGR
+    elif len(frame.shape) == 3 and frame.shape[2] == 3:  
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    # Resize image to match model input dimensions
+    
     resized_frame = cv2.resize(frame, (input_shape[1], input_shape[2]))
 
-    # Ensure we have 3 channels (RGB)
-    if len(resized_frame.shape) == 2:  # If grayscale
+    
+    if len(resized_frame.shape) == 2:  
         resized_frame = cv2.cvtColor(resized_frame, cv2.COLOR_GRAY2RGB)
 
-    # Normalize and convert to INT8
+    
     normalized_frame = (resized_frame / 255.0 * 127 - 128).astype('int8')
 
-    # Ensure correct shape (batch_size, height, width, channels)
+    
     if len(normalized_frame.shape) != 4:
         normalized_frame = np.expand_dims(normalized_frame, axis=0)
 
@@ -46,12 +46,12 @@ def preprocess_image(frame, input_shape):
 
 
 def interpret_output(output_data):
-    # Przykład interpretacji wyników (dostosuj do swojego modelu)
+    
     predicted_class = np.argmax(output_data)
     confidence = np.max(output_data)
     return predicted_class, confidence
 
-# Funkcja do oceny ostrości obrazu
+
 def calculate_sharpness(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
@@ -77,17 +77,17 @@ def calculate_sharpness(image):
 
 
 def main():
-    # Inicjalizacja kamery
+    
     picam2 = Picamera2()
     preview_config = picam2.create_preview_configuration(main={"size": (640, 480)})
     picam2.configure(preview_config)
     picam2.start()
-    time.sleep(2)  # Poczekaj, aż kamera się ustabilizuje
+    time.sleep(2)  
 
-    # Wykonaj autofocus
+    
 #    autofocus(picam2)
 
-    # Wczytanie modelu
+    
     try:
         interpreter = tf.lite.Interpreter(model_path="model_int8.tflite")
         interpreter.allocate_tensors()
@@ -104,28 +104,28 @@ def main():
 
     try:
         while True:
-            # Pobranie klatki z kamery
+           
             frame = picam2.capture_array()
 
-            # Przygotowanie obrazu
+           
             try:
                 input_data = preprocess_image(frame, input_shape)
 
 
-                # Klasyfikacja obrazu
+                
                 interpreter.set_tensor(input_details[0]['index'], input_data)
                 interpreter.invoke()
 
-                # Pobranie wyników
+                
                 output_data = interpreter.get_tensor(output_details[0]['index'])[0]
-                # Interpretacja wyników
+               
                 predicted_class, confidence = interpret_output(output_data)
                 print(f"Predykcja: {predicted_class}, Pewność: {confidence:.2f}")
 
             except Exception as e:
                 print(f"Błąd podczas przetwarzania obrazu: {e}")
 
-            # Wyjście po naciśnięciu klawisza 'q'
+            
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
@@ -134,6 +134,5 @@ def main():
         print("Kamera zatrzymana.")
 
 if __name__ == "__main__":
-    # Jeśli potrzeba skonwertować model, odkomentuj poniższą linię i ustaw ścieżki
     # convert_model_to_int8("path_to_saved_model", "model_int8.tflite")
     main()
