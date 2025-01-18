@@ -5,11 +5,13 @@ import time
 import cv2
 import tkinter as tk
 from tkinter import messagebox
+import json
 
-# Function to load labels from a .txt file
+# Function to load labels from a JSON file
 def load_labels(label_file_path):
     with open(label_file_path, 'r') as file:
-        labels = [line.strip() for line in file.readlines()]
+        data = json.load(file)
+        labels = data.get("labels", [])
     return labels
 
 def preprocess_image(frame, input_shape):
@@ -48,7 +50,7 @@ def show_popup(label, confidence):
     root.destroy()
 
 def main():
-    labels = load_labels("labels.txt")  # Load labels from the .txt file
+    labels = load_labels("label.json")  # Load labels from the .json file
 
     picam2 = Picamera2()
     preview_config = picam2.create_preview_configuration(main={"size": (640, 480)})
